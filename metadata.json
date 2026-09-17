@@ -1,0 +1,6 @@
+{
+  "name": "Classic Assistant",
+  "description": "A clean, minimalist offline Google Assistant with classic voice commands, smart utility cards, and Material 3 design with zero AI.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
