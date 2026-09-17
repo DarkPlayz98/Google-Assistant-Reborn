@@ -9,13 +9,13 @@ import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import com.example.ui.theme.AssistantBlue
 import com.example.ui.theme.AssistantGreen
 import com.example.ui.theme.AssistantRed
 import com.example.ui.theme.AssistantYellow
+import kotlin.math.sin
 
 enum class AssistantDotState {
     IDLE,
@@ -28,115 +28,70 @@ enum class AssistantDotState {
 fun AssistantDotsWave(
     state: AssistantDotState,
     audioRms: Float = 0f,
-    dotSize: Dp = 12.dp,
-    spacing: Dp = 10.dp,
+    dotSize: Dp = 10.dp,
+    spacing: Dp = 6.dp,
     modifier: Modifier = Modifier
 ) {
     val colors = listOf(AssistantBlue, AssistantRed, AssistantYellow, AssistantGreen)
 
-    // Infinite transition for animated states
     val infiniteTransition = rememberInfiniteTransition(label = "AssistantDotsTransition")
 
+    // Continuous 0..1 wave progress
+    val waveProgress by infiniteTransition.animateFloat(
+        initialValue = 0f,
+        targetValue = (2 * Math.PI).toFloat(),
+        animationSpec = infiniteRepeatable(
+            animation = tween(
+                durationMillis = when (state) {
+                    AssistantDotState.LISTENING -> 800
+                    AssistantDotState.THINKING -> 600
+                    AssistantDotState.SPEAKING -> 700
+                    AssistantDotState.IDLE -> 2000
+                },
+                easing = LinearEasing
+            ),
+            repeatMode = RepeatMode.Restart
+        ),
+        label = "wave_progress"
+    )
+
+    // Clamped RMS to prevent wild expansions
+    val clampedRms = audioRms.coerceIn(0f, 1f)
+
     Row(
-        modifier = modifier,
+        modifier = modifier.height(dotSize * 2.2f),
         horizontalArrangement = Arrangement.spacedBy(spacing),
         verticalAlignment = Alignment.CenterVertically
     ) {
         colors.forEachIndexed { index, color ->
-            val phaseDelay = index * 140
+            val phase = waveProgress + (index * 0.75f)
+            val sineVal = sin(phase.toDouble()).toFloat()
 
-            val yOffset by when (state) {
-                AssistantDotState.IDLE -> {
-                    // Subtle breathing idle animation
-                    infiniteTransition.animateFloat(
-                        initialValue = 0f,
-                        targetValue = 0f,
-                        animationSpec = infiniteRepeatable(
-                            animation = tween(1000, easing = LinearEasing),
-                            repeatMode = RepeatMode.Restart
-                        ),
-                        label = "idle_$index"
-                    )
-                }
-                AssistantDotState.LISTENING -> {
-                    // Responsive wave responding to voice RMS amplitude + periodic sine wave
-                    val targetWave = (14f + (audioRms * 18f))
-                    infiniteTransition.animateFloat(
-                        initialValue = -targetWave,
-                        targetValue = targetWave,
-                        animationSpec = infiniteRepeatable(
-                            animation = tween(380, delayMillis = phaseDelay, easing = FastOutSlowInEasing),
-                            repeatMode = RepeatMode.Reverse
-                        ),
-                        label = "listening_$index"
-                    )
-                }
-                AssistantDotState.THINKING -> {
-                    // Orbiting / jumping thinking dot wave
-                    infiniteTransition.animateFloat(
-                        initialValue = -12f,
-                        targetValue = 12f,
-                        animationSpec = infiniteRepeatable(
-                            animation = tween(420, delayMillis = phaseDelay, easing = FastOutSlowInEasing),
-                            repeatMode = RepeatMode.Reverse
-                        ),
-                        label = "thinking_$index"
-                    )
-                }
-                AssistantDotState.SPEAKING -> {
-                    // Smooth rhythmic speaking bounce
-                    infiniteTransition.animateFloat(
-                        initialValue = -8f,
-                        targetValue = 8f,
-                        animationSpec = infiniteRepeatable(
-                            animation = tween(320, delayMillis = phaseDelay, easing = FastOutSlowInEasing),
-                            repeatMode = RepeatMode.Reverse
-                        ),
-                        label = "speaking_$index"
-                    )
-                }
+            val yOffsetFraction = when (state) {
+                AssistantDotState.IDLE -> 0f
+                AssistantDotState.LISTENING -> sineVal * (0.35f + (clampedRms * 0.35f))
+                AssistantDotState.THINKING -> sineVal * 0.45f
+                AssistantDotState.SPEAKING -> sineVal * 0.3f
             }
 
-            val scaleMultiplier by when (state) {
-                AssistantDotState.LISTENING -> {
-                    infiniteTransition.animateFloat(
-                        initialValue = 0.9f,
-                        targetValue = 1.3f + (audioRms * 0.4f),
-                        animationSpec = infiniteRepeatable(
-                            animation = tween(380, delayMillis = phaseDelay, easing = FastOutSlowInEasing),
-                            repeatMode = RepeatMode.Reverse
-                        ),
-                        label = "scale_listening_$index"
-                    )
-                }
-                AssistantDotState.SPEAKING -> {
-                    infiniteTransition.animateFloat(
-                        initialValue = 0.95f,
-                        targetValue = 1.2f,
-                        animationSpec = infiniteRepeatable(
-                            animation = tween(320, delayMillis = phaseDelay, easing = FastOutSlowInEasing),
-                            repeatMode = RepeatMode.Reverse
-                        ),
-                        label = "scale_speaking_$index"
-                    )
-                }
-                else -> {
-                    rememberInfiniteTransition(label = "scale_idle").animateFloat(
-                        initialValue = 1f,
-                        targetValue = 1f,
-                        animationSpec = infiniteRepeatable(tween(1000)),
-                        label = "scale_idle_$index"
-                    )
-                }
+            val scaleMultiplier = when (state) {
+                AssistantDotState.IDLE -> 1f
+                AssistantDotState.LISTENING -> 1f + (sineVal.coerceAtLeast(0f) * 0.25f) + (clampedRms * 0.2f)
+                AssistantDotState.THINKING -> 1f + (sineVal.coerceAtLeast(0f) * 0.2f)
+                AssistantDotState.SPEAKING -> 1f + (sineVal.coerceAtLeast(0f) * 0.15f)
             }
+
+            val maxOffsetDp = (dotSize.value * yOffsetFraction).dp
+            val actualSize = (dotSize.value * scaleMultiplier).coerceIn(dotSize.value * 0.8f, dotSize.value * 1.5f).dp
 
             Box(
                 modifier = Modifier
-                    .offset(y = yOffset.dp)
-                    .size(dotSize * scaleMultiplier)
+                    .offset(y = maxOffsetDp)
+                    .size(actualSize)
                     .clip(CircleShape)
                     .background(color)
             )
         }
     }
 }
+

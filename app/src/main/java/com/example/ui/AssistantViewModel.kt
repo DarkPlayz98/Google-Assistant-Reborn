@@ -160,6 +160,14 @@ class AssistantViewModel(application: Application) : AndroidViewModel(applicatio
         }
     }
 
+    fun startListening() {
+        speechController?.startListening()
+    }
+
+    fun stopListening() {
+        speechController?.stopListening()
+    }
+
     fun stopSpeaking() {
         speechController?.stopSpeaking()
     }
